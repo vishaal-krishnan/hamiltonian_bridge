@@ -4,4 +4,4 @@ This project develops a framework for controlling pattern forming PDE systems, c
 
 ## Citation
 
-[arXiv](https://arxiv.org/abs/2410.12665) preprint
+If you found this work useful, please cite: [arXiv](https://arxiv.org/abs/2410.12665) preprint
