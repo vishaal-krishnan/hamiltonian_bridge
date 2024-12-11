@@ -1,0 +1,372 @@
+import jax.numpy as np
+import numpy as onp
+import time
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from jax.nn import relu
+from jax import jit
+from jax import vmap, pmap
+from jax import lax
+from jax import random
+from jax import grad, value_and_grad, hessian, jacfwd, jacrev, jvp
+
+from jax_md import space
+from jax_md import quantity
+from jax_md.quantity import box_size_at_number_density
+
+#from jax.config import config
+#config.update('jax_enable_x64', True)
+
+from sympy import symbols
+from sympy.plotting import plot
+from sympy import diff, tanh
+
+from scipy.sparse import csgraph
+
+from functools import partial
+
+import math
+import matplotlib.pyplot as plt
+#import numpy as np
+import pandas as pd
+
+from skimage.draw import ellipse
+from skimage.measure import label, regionprops, regionprops_table
+from skimage.transform import rotate
+
+"""Predefined functions"""
+
+displacement, shift = space.free()
+metric = space.metric(displacement)
+displacement = space.map_product(displacement)
+metric = space.map_product(metric)
+
+"""Model parameters"""
+
+epsilon = 0.01
+alpha =3.5
+
+eta_1 = 1e-2
+eta_2 = 1e-8
+
+"""Initialization
+
+Square Lattice
+"""
+
+def square_lattice(N, box_size):
+  Nx = int(np.sqrt(N))
+  Ny, ragged = divmod(N, Nx)
+  if Ny != Nx or ragged:
+    assert ValueError('Particle count should be a square. Found {}.'.format(N))
+  length_scale = box_size / (Nx-1)
+  R = []
+  for i in range(Nx):
+    for j in range(Ny):
+      R.append([i * length_scale, j * length_scale])
+  return np.array(R)
+
+rand_key=0
+
+N = 25
+dim = 2
+
+box_size = box_size_at_number_density(particle_count = N, number_density = N/10, spatial_dimension = dim)
+R_target = square_lattice(N, box_size)
+C_target = random.choice(random.PRNGKey(rand_key), np.array([-1, 1]), (R_target.shape[0],1))
+C_target=C_target.at[1].set(1)
+C_target=C_target.at[5].set(1)
+C_target=C_target.at[7].set(-1)
+C_target=C_target.at[10].set(1)
+C_target=C_target.at[12].set(-1)
+C_target=C_target.at[13].set(1)
+C_target=C_target.at[14].set(1)
+C_target=C_target.at[17].set(-1)
+C_target=C_target.at[19].set(1)
+C_target=C_target.at[21].set(1)
+C_target=C_target.at[23].set(1)
+C_target=C_target.at[24].set(1)
+
+
+def phi_field(x):
+    return np.einsum('i->', np.multiply(np.exp(np.squeeze(- alpha*np.square(metric(x, R_target)))), np.squeeze(C_target)))
+
+batch_phi_field = vmap(phi_field)
+
+n = 100
+
+xmin = np.min(R_target[:,0]) - 0.5
+xmax = np.max(R_target[:,0]) + 0.5
+ymin = np.min(R_target[:,1]) - 0.5
+ymax = np.max(R_target[:,1]) + 0.5
+
+X, Y = np.mgrid[xmin:xmax:(n*1j), ymin:ymax:(n*1j)]
+positions = np.transpose(np.vstack([X.ravel(), Y.ravel()]))
+positions_list = np.reshape(positions, (n*n,1,2))
+
+fig, ax = plt.subplots()
+
+ax.set_xlim(xmin, xmax)
+ax.set_ylim(ymin, ymax)
+ax.grid(False)
+ax.set_aspect('equal', adjustable='box')
+
+ax.pcolormesh(X, Y, np.reshape(batch_phi_field(positions_list), (n,n)), cmap='YlGnBu')
+
+plt.show()
+
+"""Random cloud of droplets"""
+
+N = 25
+dim = 2
+
+box_size = box_size_at_number_density(particle_count = N, number_density = N/10, spatial_dimension = dim)
+R0 = random.uniform(random.PRNGKey(5), (N, dim), maxval=box_size)
+C0 = random.choice(random.PRNGKey(rand_key), np.array([-1, 1]), (R0.shape[0],1))
+C0=C0.at[1].set(1)
+C0=C0.at[5].set(1)
+C0=C0.at[7].set(-1)
+C0=C0.at[10].set(1)
+C0=C0.at[12].set(-1)
+C0=C0.at[13].set(1)
+C0=C0.at[14].set(1)
+C0=C0.at[17].set(-1)
+C0=C0.at[19].set(1)
+C0=C0.at[21].set(1)
+C0=C0.at[23].set(1)
+C0=C0.at[24].set(1)
+
+def phi_field(x):
+    return np.einsum('i->', np.multiply(np.exp(np.squeeze(- alpha*np.square(metric(x, R0)))), np.squeeze(C0) ))
+
+batch_phi_field = vmap(phi_field)
+
+n = 100
+
+xmin = np.min(R0[:,0]) - 0.5
+xmax = np.max(R0[:,0]) + 0.5
+ymin = np.min(R0[:,1]) - 0.5
+ymax = np.max(R0[:,1]) + 0.5
+
+X, Y = np.mgrid[xmin:xmax:(n*1j), ymin:ymax:(n*1j)]
+positions = np.transpose(np.vstack([X.ravel(), Y.ravel()]))
+positions_list = np.reshape(positions, (n*n,1,2))
+
+fig, ax = plt.subplots()
+
+ax.set_xlim(xmin, xmax)
+ax.set_ylim(ymin, ymax)
+ax.grid(False)
+ax.set_aspect('equal', adjustable='box')
+
+ax.pcolormesh(X, Y, np.reshape(batch_phi_field(positions_list), (n,n)), cmap='YlGnBu')
+
+plt.show()
+
+C0-C_target
+
+"""Potential
+
+Eulerian domain
+"""
+
+n = 100
+xmin = np.min(R0[:,0]) - 0.5
+xmax = np.max(R0[:,0]) + 0.5
+ymin = np.min(R0[:,1]) - 0.5
+ymax = np.max(R0[:,1]) + 0.5
+X, Y = np.mgrid[xmin:xmax:(n*1j), ymin:ymax:(n*1j)]
+positions = np.transpose(np.vstack([X.ravel(), Y.ravel()]))
+positions_list = np.reshape(positions, (n*n,1,2))
+
+def landau(R):
+
+  eta = 1e1
+  beta = 10
+  dx2 = ((xmax-xmin)/n)**2
+
+  def phi_field(x):
+    return np.einsum('i->', np.multiply(np.exp(np.squeeze(- alpha*np.square(metric(x, R)))), np.squeeze(C0) ))
+
+  def grad_phi_field(x):
+    return jacrev(phi_field, argnums=0)(x)
+
+  batch_phi_field = vmap(phi_field)
+  batch_grad_phi_field = vmap(grad_phi_field)
+
+  return 0*0.001*dx2*np.einsum('i->', 5e2*np.square(1 - np.square(batch_phi_field(positions_list))) + np.einsum('ij->i', np.square(np.squeeze(batch_grad_phi_field(positions_list)))) )
+
+def boundedness(R):
+  def phi_field(x):
+    return np.einsum('i,i->', np.exp(np.squeeze(- alpha*np.square(metric(x, R)))), np.ones((R0.shape[0],1))[:,0])
+  batch_phi_field = vmap(phi_field)
+  phi_grid = np.reshape(batch_phi_field(positions_list), (n,n))
+  return 1e0*np.einsum('ij->', np.square(relu(metric(np.array([[box_size/2, box_size/2]]), R) - box_size/8)))
+
+"""#Uncontrolled"""
+
+R_iter = []
+R_iter.append(R0)
+
+t0 = 0.0
+t1 = 0.5
+dt = 0.001
+
+D_R = 0.001
+
+for i in range(int((t1-t0)/dt)):
+  R_iter.append(R_iter[-1] - dt*jacrev(landau, argnums=0)(R_iter[-1]) + np.sqrt(2*D_R*dt)*random.normal(random.PRNGKey(int(time.time())), shape=R_iter[-1].shape))
+
+from matplotlib.animation import FuncAnimation, PillowWriter
+
+fig_size = (10,10)
+fig, ax = plt.subplots(figsize=fig_size)
+
+ax.set_xlim(xmin, xmax)
+ax.set_ylim(ymin, ymax)
+ax.grid(False)
+ax.set_aspect('equal', adjustable='box')
+
+def animate(j):
+  k = 5*j
+  ax.clear()
+
+  R = R_iter[k]
+
+  def phi_field(x):
+    return np.einsum('i->', np.exp(np.squeeze(- alpha*np.square(metric(x, R)))))
+  batch_phi_field = vmap(phi_field)
+
+  phi_eval_euler = np.reshape(batch_phi_field(positions_list), (n,n))
+  fgrnd1 = ax.pcolormesh(X, Y, phi_eval_euler,cmap='YlGnBu')
+
+  return fgrnd1
+
+ani = FuncAnimation(fig, animate, interval=50, blit=False, repeat=True, frames=int(len(R_iter)/5))
+ani.save("CH_uncontrolled.gif", dpi=300, writer=PillowWriter(fps=10))
+
+"""#Control"""
+
+#def terminal_cost(R):
+
+  # dx2 = ((xmax-xmin)/n)**2
+
+  #def phi_field(x):
+   # return np.einsum('i->', np.multiply(np.exp(np.squeeze(- alpha*np.square(metric(x, R)))), np.squeeze(C0) ))
+
+  #def phi_field_target(x):
+   # return np.einsum('i->', np.multiply(np.exp(np.squeeze(- alpha*np.square(metric(x, R_target)))), np.squeeze(C_target) ))
+
+  #batch_phi_field = vmap(phi_field)
+  #batch_phi_field_target = vmap(phi_field_target)
+
+  #phi_eval_euler = batch_phi_field(positions_list)
+  #phi_eval_euler_target = batch_phi_field_target(positions_list)
+
+  #  return 1e-1*np.einsum('i,i->' , phi_eval_euler-phi_eval_euler_target, phi_eval_euler-phi_eval_euler_target)+100000*np.einsum('ij->', np.square(relu(metric(np.array([[box_size/2, box_size/2]]), R) - box_size/2)))
+  #return 1e-2*np.einsum('i,i->' , phi_eval_euler-phi_eval_euler_target, phi_eval_euler-phi_eval_euler_target)
+
+ # return np.einsum('ij,ij->', R-R_target, R-R_target)
+
+def terminal_cost(R):
+
+  # dx2 = ((xmax-xmin)/n)**2
+
+  def phi_field(x):
+    return np.einsum('i->', np.multiply(np.exp(np.squeeze(- alpha*np.square(metric(x, R)))), np.squeeze(C0) ))
+
+  def phi_field_target(x):
+    return np.einsum('i->', np.multiply(np.exp(np.squeeze(- alpha*np.square(metric(x, R_target)))), np.squeeze(C_target) ))
+
+  batch_phi_field = vmap(phi_field)
+  batch_phi_field_target = vmap(phi_field_target)
+
+  phi_eval_euler = batch_phi_field(positions_list)
+  phi_eval_euler_target = batch_phi_field_target(positions_list)
+
+  #  return 1e-1*np.einsum('i,i->' , phi_eval_euler-phi_eval_euler_target, phi_eval_euler-phi_eval_euler_target)+100000*np.einsum('ij->', np.square(relu(metric(np.array([[box_size/2, box_size/2]]), R) - box_size/2)))
+  return 1e-2*np.einsum('i,i->' , phi_eval_euler-phi_eval_euler_target, phi_eval_euler-phi_eval_euler_target)
+
+  #return np.einsum('ij,ij->', R-R_target, R-R_target)
+
+D_R = 0.00000001
+
+t0, t1 = 0, 0.01
+dt = 0.01
+
+n_samples = 1
+
+def ctrl(R):
+
+  R_iter_ctrl = []
+  R_iter_ctrl.append(R)
+
+  for k in range(int((t1-t0)/dt)):
+    R_iter_ctrl.append(R_iter_ctrl[-1] - dt*jacrev(landau, argnums=0)(R_iter_ctrl[-1]) + np.sqrt(2*D_R*dt)*random.normal(random.PRNGKey(int(time.time())), shape=R_iter_ctrl[-1].shape))
+
+  Lambda_R_iter = []
+  Lambda_R_iter.append(jacrev(terminal_cost, argnums=0)(R_iter_ctrl[-1]))
+
+  for t in range(int((t1-t0)/dt)):
+    ind = int(t1/dt)-t
+    Lambda_R_iter.append(Lambda_R_iter[-1] + dt*(np.einsum('ij,ijkl->kl', Lambda_R_iter[-1], -jacfwd(jacrev(landau, argnums=0), argnums=0)(R_iter_ctrl[ind]))))
+
+  return -Lambda_R_iter[-1]
+
+R_iter = []
+R_iter.append(R0)
+cost=[]
+r_control=[]
+
+t = 0.0
+
+while(np.sqrt(terminal_cost(R_iter[-1])) > 1e-2):
+
+  print(t, np.sqrt(terminal_cost(R_iter[-1])))
+  cost.append(np.sqrt(terminal_cost(R_iter[-1])))
+  t = t + dt
+
+  u_R = ctrl(R_iter[-1])
+
+  r_control.append(u_R)
+
+
+  R_iter.append(R_iter[-1] - dt*jacrev(landau, argnums=0)(R_iter[-1]) + dt*u_R + np.sqrt(2*D_R*dt)*random.normal(random.PRNGKey(int(time.time())), shape=R_iter[-1].shape))
+
+R = R_iter[-1]
+
+n = 100
+
+xmin = np.min(R0[:,0]) - 0.5
+xmax = np.max(R0[:,0]) + 0.5
+ymin = np.min(R0[:,1]) - 0.5
+ymax = np.max(R0[:,1]) + 0.5
+
+X, Y = np.mgrid[xmin:xmax:(n*1j), ymin:ymax:(n*1j)]
+positions = np.transpose(np.vstack([X.ravel(), Y.ravel()]))
+positions_list = np.reshape(positions, (n*n,1,2))
+
+def phi_field(x):
+    return np.einsum('i->', np.multiply(np.exp(np.squeeze(- alpha*np.square(metric(x, R)))), np.squeeze(C0)))
+
+batch_phi_field = vmap(phi_field)
+
+fig, ax = plt.subplots()
+
+ax.set_xlim(xmin, xmax)
+ax.set_ylim(ymin, ymax)
+ax.grid(False)
+ax.set_aspect('equal', adjustable='box')
+ax.pcolormesh(X, Y, np.reshape(batch_phi_field(positions_list), (n,n)),cmap='YlGnBu')
+
+plt.show()
+
+x_traj=np.array(R_iter)[:,6,0]
+y_traj=np.array(R_iter)[:,6,1]
+plt.plot(x_traj,y_traj)
+
+x_traj=np.array(R_iter)[:,6,0]
+y_traj=np.array(R_iter)[:,6,1]
+plt.plot(x_traj,y_traj)
