@@ -6,7 +6,7 @@ targeted pattern control
 
 
 ## 📌 Overview
-This repository contains the **Jupyter Notebook** file used in our paper:
+This repository contains **codes** and  **Jupyter Notebook** file used in our paper:
 
 > **"Hamiltonian bridge: A physics-driven generative framework for
 targeted pattern control"**  
