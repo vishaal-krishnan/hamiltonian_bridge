@@ -1,7 +1,29 @@
-# Hamiltonian bridge: A physics-driven generative framework for targeted pattern control
+# Hamiltonian-Bridge
+Hamiltonian bridge: A physics-driven generative framework for
+targeted pattern control
 
-This project develops a framework for controlling pattern forming PDE systems, combining knowledge of a general class of dynamical laws for pattern formation in non-equilibrium systems, and stochastic optimal control. The framework relies on a mapping between stochastic many-body Lagrangian physics and deterministic Eulerian pattern forming PDEs and the Feynman-Kac adjoint path integral control. The term "Hamiltonian bridge" refers to the fact that the controlled pattern evolution takes the form of a Hamiltonian system connecting the inital to the target pattern. 
+![Simulation Preview](images/snapshot.png)
 
-## Citation
 
-If you found this work useful, please cite: [arXiv](https://arxiv.org/abs/2410.12665) preprint
+## 📌 Overview
+This repository contains the **Jupyter Notebook** file used in our paper:
+
+> **"Hamiltonian bridge: A physics-driven generative framework for
+targeted pattern control"**  
+> **Authors:** Vishaal Krishnan, Sumit Sinha, and L. Mahadevan  
+> **Published in:** *arXiv:2410.12665*
+> **DOI:** [https://arxiv.org/abs/2410.12665](https://arxiv.org/abs/2410.12665)  
+
+
+
+
+## 📜 Citation
+If you use this code in your research, please cite our paper:
+```bibtex
+@article{krishnan2024hamiltonian,
+  title={Hamiltonian bridge: A physics-driven generative framework for targeted pattern control},
+  author={Krishnan, Vishaal and Sinha, Sumit and Mahadevan, L},
+  journal={arXiv preprint arXiv:2410.12665},
+  year={2024}
+}
+```
